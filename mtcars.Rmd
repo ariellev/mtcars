@@ -19,7 +19,7 @@ require(lattice)
 data(mtcars)
 ```
 
-###Exploratory data analyses
+###Exploratory data analysis
 The data, extracted from 1974 Motor Trend magazine, comprise gasoline mileage in miles per gallon (MPG), and `r dim(mtcars)[2] - 1` aspects of automotive design and performance for `r dim(mtcars)[1]` vehicles. The regression model attemps to quantify the MPG difference between automatic and manual transmissions.
 ```{r mtcars, echo=F}
 kable(head(mtcars,5), caption = "Table 1.|Data for Motor Trend sample of 32 automobiles")
