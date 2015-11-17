@@ -1,0 +1,27 @@
+/* Whole document: */
+body{
+  font-family: Garamond;
+  font-size: 10pt;
+}
+
+h1 {
+  font-size: 22pt;
+  font-variant: small-caps;
+  font-weight: bold;
+}
+
+h3 {
+  font-family: Garamond;
+  font-size: 14pt;
+  font-variant: small-caps;
+  font-weight: bold;
+}
+
+table {
+  font-family: Garamond;
+  font-size: 9pt;  
+}
+
+code {
+  font-size: 9pt;      
+}

@@ -1,0 +1,114 @@
+---
+title: 'MPG difference: Automatic vs. Manual Transmissions'
+author: "Ariel Lev, 24. May 2015"
+output: 
+  html_document:
+    keep_md: true
+    css: style.css
+---
+```{r, echo=F, fig.width=12, fig.height=4, message=F}
+require(ggplot2)
+require(datasets)
+require(ggm)
+require(knitr)
+require(lattice)
+data(mtcars)
+```
+###Executive Summary
+With a confidence level of 95%, vehicles equipped with a manual transmission drive between 0.05 to 5.83 more miles per gallon than vehicles which are equipped with automatic transmission.  
+
+###Exploratory data analysis
+The data, extracted from 1974 Motor Trend magazine, comprise gasoline mileage in miles per gallon (MPG), and `r dim(mtcars)[2] - 1` aspects of automotive design and performance for `r dim(mtcars)[1]` vehicles. 
+```{r mtcars, echo=F}
+kable(head(mtcars,3), caption = "Table 1.|First three entries out of Motor Trend sample")
+```
+
+```{r, echo=F,tidy=TRUE, message=F}
+mpg_test <- t.test(mtcars$mpg[mtcars$am == 1], mtcars$mpg[mtcars$am == 0], var.equal = T)
+conf <- round(mpg_test$conf.int,2)
+```
+This particular sample of `r dim(mtcars)[1]` vehicles has a bias to non-U.S. OEMs: it includes 7 Mercedes, a Porsche, a Ferrari and a Maserati. Therefore we might not expect a universal prediction model to emerge. A t-test comparing the MPG means of automatic vs. manual transmission suggests a significant difference in sample means, with p-value of **`r format(mpg_test$p.value, scientific=TRUE, digits = 3)`** and **95% confidence interval (`r abs(conf[1])`, `r abs(conf[2])`)**
+
+###Regression Anaylsis  
+Obviously in order to study the response MPG depending on transmission type, any linear model must include AM as a term.
+```{r, echo=T}
+fit0 <- lm(mpg ~ factor(am), data = mtcars)
+```
+Unfortunately AM can be accounted only for little of the variance of MPG. Our basic model reports a R square of only `r round(100*summary(fit0)$r.squared, 2)`%. In addition, the partial correlation of MPG and AM, controlled by WT, yields hardly **any** correlation between the two. 
+```{r, echo=T}
+pcor(c("mpg", "am", "wt"), var(mtcars))
+```
+Following code shows the 7 strongest most correlated features with MPG, given in absoulte values. Correlation of MPG against each one of the features suggests WT as the best single predictor. Physically it makes sense, while mileage can be considered as work applied to a vehicle's body.
+```{r, echo=T,tidy=TRUE, message=F}
+sort(abs(cor(mtcars)[1,-c(1)]), decreasing = T)[1:7]
+```
+
+```{r, echo=T,tidy=TRUE, message=F}
+# shifting wt by its mean in order to yield meaningful intercept values  
+fit1 <- update(fit0, . ~ . + I(wt - mean(wt)), data = mtcars)
+```
+Including WT as a term results not only in a far larger R square (`r round(100*summary(fit1)$r.squared, 2)`%), but also in a supportive variance analysis showing a 46.12 F-Ratio with a very small p-value suggesting a significant improvement to the prediction force of our model.
+```{r, echo=T}
+anv <- anova(fit0,fit1)
+data.frame( F = anv$"F"[2], "p-value" = anv$"Pr(>F)"[2])
+```
+A fit of MPG may be subtle to inaccuracy, when ignoring an (at least intuitively) important aspect such as the engine fuel consumption. For a 3rd regressor i was considering either engine displacement or 1/4 mile time. Using the above methods I found out that 1/4 mile time is a slightly better contributor than displacement. When adding a 4th regressor, the procedure loses its strength, and it is hard to improve the model any further.
+```{r, echo=F,tidy=TRUE, message=F}
+# shifting qsec by its mean in order to yield meaningful intercept values  
+fit2 <- update(fit1, . ~ . + I(qsec - mean(qsec)), data = mtcars)
+```
+A residual analysis reveals a mean of `r format(mean(fit2$resid), scientific=TRUE, digits = 3)` and p-value of `r shapiro.test(fit2$resid)$p.value` in Shapiro-Wilk Normality Test, indicating that the residuals are normally distributed. Figure 2 depicts the residuals.
+```{r, echo=T,tidy=TRUE, message=F}
+# shifting qsec by its mean in order to yield meaningfull intercept values  
+fit2 <- update(fit1, . ~ . + I(qsec - mean(qsec)), data = mtcars)
+summary(fit2)$coefficients
+# extracting confidence intervals
+sumCoef <- summary(fit2)$coefficients
+ci <- data.frame(low = c(), high = c())
+for (i in 1:4) {
+  ci <- rbind(ci, round(c( sumCoef[i,1], sumCoef[i,1] + c(-1,1)*qt(.975,fit2$df)*sumCoef[i,2]), 2))
+  }
+names(ci) <- c("coeff", "low", "high")
+row.names(ci) <- row.names(sumCoef)
+ci
+```
+
+
+###Summary
+The p-values imply that all coefficients are significant.  An analysis of the above coefficients shows with a 95% confidence that:  
++   A vehicle equipped with an automatic transmission, weights `r round(mean(mtcars$wt),2)*1000`lb and makes a 1/4 of mile in `r round(mean(mtcars$qsec),1)` secs, drives between `r abs(ci[1,2])` to `r abs(ci[1,3])` miles per gallon  
++   A vehicle equipped with a manual transmission drives between `r abs(ci[2,2])` to `r abs(ci[2,3])` more miles per gallons in comparison to a vehicle with an automatic transmission  
+  
+In addition:  
++   Between `r abs(ci[3,2])` to `r abs(ci[3,3])` decrease in MPG per 1000lb increase in weight  
++   Between `r abs(ci[4,2])` to `r abs(ci[4,3])` decrease in MPG per each additional second in 1/4 mile time 
+
+#Appendix
+Figure 1.|Aqua tiles indicate a stronger correlation.
+```{r, echo=F, fig.width=8, fig.height=8, message=F, fig.cap=""}
+levelplot(abs(cor(mtcars)))
+```
+
+Figure 2.|Residuals plot showing homoscedasticity and normality.
+```{r, echo=F, fig.width=8, fig.height=8, message=F, fig.cap=""}
+par(mfrow = c(2,2))
+plot(fit2)
+```
+
+
+```{r, echo=F, fig.width=12, fig.height=8, message=F}
+# variance inflation - comapres the variance to the case in which regressor were complete orthogonal.
+# vif(fit2)
+
+# nested liklihood test
+# lrtest(fit0, fit1)
+# lrtest(fit1, fit2)
+
+
+
+# cross validation code
+# train_sample <- mtcars[s,];test_sample <- mtcars[-s,]
+# s <- sample(1:nrow(mtcars), nrow(mtcars)*0.8, replace=FALSE);train_sample <- mtcars[s,];test_sample <- mtcars[-s,]
+# fit_train <- lm(mpg ~ factor(am) + I(wt - mean(wt)) + I(qsec - mean(qsec)), data = train_sample)
+# t.test(predict(fit_train, newdata = test_sample), test_sample$mpg)$p.value
+```
